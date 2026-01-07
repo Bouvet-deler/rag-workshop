@@ -1,0 +1,15 @@
+{
+  "dotnet.defaultSolution": "RagWorkshop.sln",
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true
+  },
+  "omnisharp.enableRoslynAnalyzers": true,
+  "omnisharp.enableEditorConfigSupport": true,
+  "[csharp]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  }
+}
