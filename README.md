@@ -1,6 +1,26 @@
-# RAG Workshop - Development Environment Setup
+# RAG Workshop - Build Your Own Retrieval-Augmented Generation System
 
-A hands-on workshop for building a RAG (Retrieval-Augmented Generation) application with PDF upload and chat capabilities.
+A hands-on workshop where you'll build a complete RAG (Retrieval-Augmented Generation) application from scratch with PDF upload, semantic search, and AI-powered chat capabilities.
+
+## 🎯 Two Ways to Use This Repository
+
+### 🎓 **Interactive Workshop** (Recommended for Learning)
+**[Start the Workshop →](workshop/README.md)**
+
+Build the RAG system step-by-step by following guided instructions and copying code snippets. Perfect for learning how RAG works from the ground up.
+- **Duration:** ~2.5 hours
+- **Modules:** Setup → Ingestion Pipeline → RAG Implementation
+- **What you'll build:** PDF processing, embeddings, vector search, AI chat
+
+### ⚡ **Complete Solution** (Ready to Run)
+**[View the Solution →](solution/README.md)**
+
+A fully working RAG implementation you can run immediately. Use it as reference, for quick demos, or to see how everything fits together.
+- Run immediately after configuring credentials
+- Study the complete implementation
+- Use as reference while doing the workshop
+
+---
 
 ## Prerequisites
 
@@ -18,13 +38,31 @@ Before starting, ensure you have the following installed:
 
 ## Quick Start
 
-### 1. Clone the Repository
-```bash
-git clone <your-repo-url>
-cd rag
-```
+Choose your path:
 
-### 2. Start Elasticsearch
+### 🎓 **Workshop Mode** (Learn by Building)
+
+**[→ Start the Interactive Workshop](workshop/README.md)**
+
+1. Start Elasticsearch
+2. Follow Module 0 to set up the API
+3. Build the ingestion pipeline (Module 1)
+4. Implement RAG (Module 2)
+
+### ⚡ **Solution Mode** (Quick Demo)
+
+**[→ Run the Complete Solution](solution/README.md)**
+
+1. Start Elasticsearch (see below)
+2. Configure Azure OpenAI credentials
+3. Run `dotnet run --project src/RagWorkshop.Api` from solution folder
+4. Access Swagger UI at http://localhost:5001
+
+---
+
+## Infrastructure Setup (Required for Both)
+
+### 1. Start Elasticsearch
 ```bash
 docker-compose up -d
 ```
@@ -33,7 +71,7 @@ This will start:
 - **Elasticsearch** on `http://localhost:9200`
 - **Elasticvue** (UI) on `http://localhost:8080`
 
-### 3. Verify It's Working
+### 2. Verify Elasticsearch
 
 Wait about 30 seconds for Elasticsearch to start, then test:
 
@@ -43,7 +81,7 @@ curl http://localhost:9200
 
 You should see a JSON response with Elasticsearch version information.
 
-### 4. Connect Elasticvue to Elasticsearch
+### 3. Access Elasticvue (Optional UI)
 
 1. Open Elasticvue in your browser: http://localhost:8080
 2. You'll see the welcome page - click **"Add elasticsearch cluster"**
@@ -56,48 +94,121 @@ You should see a JSON response with Elasticsearch version information.
 
 You should now see your Elasticsearch cluster in Elasticvue!
 
-### 5. Configure Azure OpenAI (Required for Modules 1 & 2)
+### 4. Configure Azure OpenAI
 
-To use Azure OpenAI for embeddings and chat, configure your credentials in `appsettings.json` or using User Secrets:
+You'll need Azure OpenAI with these deployments:
+- **gpt-4o-mini** (chat completion)
+- **text-embedding-3-small** (embeddings)
+
+**Using User Secrets (Recommended):**
 
 ```bash
-cd src/RagWorkshop.Api
+# Navigate to the API project (choose workshop or solution)
+cd workshop/src/RagWorkshop.Api
+# OR
+cd solution/src/RagWorkshop.Api
 
-# Set your Azure OpenAI endpoint (from Azure portal)
-dotnet user-secrets set "AzureOpenAI:Endpoint" "https://your-resource.openai.azure.com/"
-
-# Set your Azure OpenAI API key
+dotnet user-secrets set "AzureOpenAI:Endpoint" "https://YOUR-RESOURCE.openai.azure.com/"
 dotnet user-secrets set "AzureOpenAI:ApiKey" "your-api-key-here"
-
-# Optional: Override deployment names (defaults are gpt-4o-mini and text-embedding-3-small)
-dotnet user-secrets set "AzureOpenAI:DeploymentName" "gpt-4o-mini"
-dotnet user-secrets set "AzureOpenAI:EmbeddingDeploymentName" "text-embedding-3-small"
 ```
 
-Verify your configuration:
-```bash
-dotnet user-secrets list
-```
+**Or edit appsettings.json** (not recommended for production):
+- Update `AzureOpenAI:Endpoint` and `AzureOpenAI:ApiKey` in appsettings.json
 
-**Note**: User secrets override `appsettings.json` and are never committed to source control.
+---
 
-### 6. Run the API
-
-```bash
-cd src/RagWorkshop.Api
-dotnet run
-```
-
-The API will start at http://localhost:5001 with Swagger UI at the root.
-
-**Test your connections**: Visit http://localhost:5001 and try the `/api/admin/status` endpoint to verify both Elasticsearch and Azure OpenAI are configured correctly.
-
-## Project Structure
+## 📁 Repository Structure
 
 ```
-rag/
-├── docker-compose.yml          # Elasticsearch and Elasticvue services
-├── src/
+rag-workshop/
+├── workshop/                    # 🎓 Interactive learning path
+│   ├── README.md               # Workshop overview and navigation
+│   ├── docs/                   # Step-by-step module guides
+│   │   ├── MODULE_0_SETUP.md
+│   │   ├── MODULE_1_INGESTION.md
+│   │   └── MODULE_2_RAG.md
+│   └── src/                    # Starter code with TODOs
+│       ├── RagWorkshop.Api/
+│       ├── RagWorkshop.Ingestion/
+│       ├── RagWorkshop.Rag/
+│       └── RagWorkshop.Repository/
+│
+├── solution/                    # ⚡ Complete working implementation
+│   ├── README.md               # Solution reference guide
+│   ├── RagWorkshop.sln         # Solution file
+│   └── src/                    # Source code
+│       ├── RagWorkshop.Api/
+│       ├── RagWorkshop.Ingestion/
+│       ├── RagWorkshop.Rag/
+│       └── RagWorkshop.Repository/
+│
+└── docker-compose.yml          # Elasticsearch + Elasticvue
+```
+
+---
+
+## 🎓 What You'll Learn
+
+In the **workshop**, you'll learn how to:
+- Extract text from PDF files with page tracking
+- Implement text chunking strategies with overlap
+- Generate vector embeddings using Azure OpenAI
+- Store and index embeddings in Elasticsearch
+- Perform semantic search using vector similarity (kNN)
+- Build the RAG pattern: Retrieval + Augmentation + Generation
+- Create REST APIs with ASP.NET Core
+- Wire up dependency injection for clean architecture
+
+---
+
+## 🚀 Getting Started
+
+### For Learners (Recommended)
+**[👉 Start the Workshop](workshop/README.md)**
+
+Begin with Module 0 and work through each module sequentially, building your understanding and the application together.
+
+### For Quick Exploration
+**[👉 Run the Solution](solution/README.md)**
+
+Skip straight to the working implementation to see what you'll build or use as reference material.
+
+---
+
+## 🔧 Technologies Used
+
+| Technology | Purpose |
+|------------|---------|
+| **ASP.NET Core 8** | REST API framework |
+| **Azure OpenAI** | Embeddings (text-embedding-3-small) & Chat (gpt-4o-mini) |
+| **Elasticsearch** | Vector database for semantic search |
+| **iText7** | PDF text extraction |
+| **Docker** | Elasticsearch infrastructure |
+
+---
+
+## 💡 Need Help?
+
+- **Workshop stuck?** Check the `/solution` folder for working implementations
+- **API not working?** Use `/api/admin/*` endpoints to diagnose issues
+- **Want to compare?** Use `diff` or VS Code's compare feature between workshop and solution
+
+---
+
+## 🎉 What You'll Build
+
+By the end of the workshop, you'll have created:
+- ✅ PDF document ingestion pipeline
+- ✅ Vector embedding generation and storage
+- ✅ Semantic search functionality
+- ✅ AI-powered Q&A with source citations
+- ✅ Production-ready REST API
+
+All built from scratch with full understanding of each component!
+
+---
+```
+**Ready to begin? [Start the Workshop →](workshop/README.md)**
 │   ├── RagWorkshop.Api/        # ASP.NET Core Web API (HTTP layer)
 │   │   ├── Controllers/
 │   │   │   ├── AdminController.cs        # Connection checks & diagnostics
