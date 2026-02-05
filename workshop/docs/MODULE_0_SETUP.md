@@ -176,9 +176,10 @@ public static class ElasticsearchServiceExtensions
 
 ### 📝 Update `Program.cs`
 
-Add the Elasticsearch configuration to [Program.cs](../src/RagWorkshop.Api/Program.cs). Add this line **after** `AddSwaggerGen()`:
+Import the extension method and add the Elasticsearch configuration to [Program.cs](../src/RagWorkshop.Api/Program.cs). Add this line **after** `AddSwaggerGen()`:
 
 ```csharp
+// Add this line:
 using RagWorkshop.Api.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
