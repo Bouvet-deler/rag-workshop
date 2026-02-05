@@ -55,6 +55,15 @@ public class ElasticsearchDocumentRepository : IDocumentRepository
     }
 
     /// <summary>
+    /// TODO - MODULE 1: Get all documents
+    /// Retrieve all documents from the index and reconstruct them with their chunks
+    /// </summary>
+    public Task<List<Document>> GetAllDocumentsAsync()
+    {
+        throw new NotImplementedException("GetAllDocumentsAsync - to be implemented in Module 1");
+    }
+
+    /// <summary>
     /// TODO - MODULE 2: Perform semantic search using kNN
     /// Use _client.SearchAsync() with KnnQuery to find similar chunks
     /// </summary>
