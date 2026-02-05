@@ -1,70 +1,41 @@
 # RAG Workshop - Build Your Own Retrieval-Augmented Generation System
 
-A hands-on workshop where you'll build a complete RAG (Retrieval-Augmented Generation) application from scratch with PDF upload, semantic search, and AI-powered chat capabilities.
-
-## 🎯 Two Ways to Use This Repository
-
-### 🎓 **Interactive Workshop** (Recommended for Learning)
-**[Start the Workshop →](workshop/README.md)**
-
-Build the RAG system step-by-step by following guided instructions and copying code snippets. Perfect for learning how RAG works from the ground up.
-- **Duration:** ~2.5 hours
-- **Modules:** Setup → Ingestion Pipeline → RAG Implementation
-- **What you'll build:** PDF processing, embeddings, vector search, AI chat
-
-### ⚡ **Complete Solution** (Ready to Run)
-**[View the Solution →](solution/README.md)**
-
-A fully working RAG implementation you can run immediately. Use it as reference, for quick demos, or to see how everything fits together.
-- Run immediately after configuring credentials
-- Study the complete implementation
-- Use as reference while doing the workshop
-
----
-
 ## Prerequisites
 
 Before starting, ensure you have the following installed:
 
 ### All Platforms
-- **Docker Desktop** (or Docker Engine + Docker Compose on Linux)
-  - Windows: [Download Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-  - macOS: [Download Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) (supports both Intel and Apple Silicon)
-  - Linux: [Install Docker Engine](https://docs.docker.com/engine/install/) + [Docker Compose](https://docs.docker.com/compose/install/)
+- **Docker or Podman** (container runtime)
+  - **Docker** (recommended for beginners):
+    - Windows: [Download Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+    - macOS: [Download Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/) (supports both Intel and Apple Silicon)
+    - Linux: [Install Docker Engine](https://docs.docker.com/engine/install/) + [Docker Compose](https://docs.docker.com/compose/install/)
+  - **Podman** (Docker-compatible alternative):
+    - Windows: [Download Podman Desktop](https://podman-desktop.io/downloads)
+    - macOS: `brew install podman` + [Podman Desktop](https://podman-desktop.io/downloads)
+    - Linux: [Install Podman](https://podman.io/getting-started/installation) + `podman-compose`
+  - Verify installation: `docker --version` or `podman --version`
 
 - **.NET 8 SDK**
   - [Download .NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
   - Verify installation: `dotnet --version` (should show 8.x.x)
-
-## Quick Start
-
-Choose your path:
-
-### 🎓 **Workshop Mode** (Learn by Building)
-
-**[→ Start the Interactive Workshop](workshop/README.md)**
-
-1. Start Elasticsearch
-2. Follow Module 0 to set up the API
-3. Build the ingestion pipeline (Module 1)
-4. Implement RAG (Module 2)
-
-### ⚡ **Solution Mode** (Quick Demo)
-
-**[→ Run the Complete Solution](solution/README.md)**
-
-1. Start Elasticsearch (see below)
-2. Configure Azure OpenAI credentials
-3. Run `dotnet run --project src/RagWorkshop.Api` from solution folder
-4. Access Swagger UI at http://localhost:5001
 
 ---
 
 ## Infrastructure Setup (Required for Both)
 
 ### 1. Start Elasticsearch
+
+**Using Docker:**
 ```bash
 docker-compose up -d
+```
+
+**Using Podman:**
+```bash
+podman-compose up -d
+# OR (with Podman 4.0+)
+podman compose up -d
 ```
 
 This will start:
@@ -117,6 +88,30 @@ dotnet user-secrets set "AzureOpenAI:ApiKey" "your-api-key-here"
 
 ---
 
+## Quick Start
+
+Now that you have the infrastructure running, choose your path:
+
+### 🎓 **Workshop Mode** (Learn by Building)
+
+**[→ Start the Interactive Workshop](workshop/README.md)**
+
+Follow the step-by-step modules to build the RAG system from scratch:
+1. Module 0: Configure the API and verify connections
+2. Module 1: Build the document ingestion pipeline
+3. Module 2: Implement the RAG functionality
+
+### ⚡ **Solution Mode** (Quick Demo)
+
+**[→ Run the Complete Solution](solution/README.md)**
+
+Run the complete working implementation immediately:
+1. Run `dotnet run --project solution/src/RagWorkshop.Api`
+2. Access Swagger UI at http://localhost:5001
+3. Upload PDFs and start asking questions
+
+---
+
 ## 📁 Repository Structure
 
 ```
@@ -156,8 +151,6 @@ In the **workshop**, you'll learn how to:
 - Store and index embeddings in Elasticsearch
 - Perform semantic search using vector similarity (kNN)
 - Build the RAG pattern: Retrieval + Augmentation + Generation
-- Create REST APIs with ASP.NET Core
-- Wire up dependency injection for clean architecture
 
 ---
 
@@ -201,33 +194,6 @@ By the end of the workshop, you'll have created:
 - ✅ PDF document ingestion pipeline
 - ✅ Vector embedding generation and storage
 - ✅ Semantic search functionality
-- ✅ AI-powered Q&A with source citations
-- ✅ Production-ready REST API
-
-All built from scratch with full understanding of each component!
-
----
-```
-**Ready to begin? [Start the Workshop →](workshop/README.md)**
-│   ├── RagWorkshop.Api/        # ASP.NET Core Web API (HTTP layer)
-│   │   ├── Controllers/
-│   │   │   ├── AdminController.cs        # Connection checks & diagnostics
-│   │   │   ├── IngestionController.cs    # Module 1: PDF upload & indexing
-│   │   │   └── RagController.cs          # Module 2: RAG chat & search
-│   │   ├── appsettings.json              # Configuration
-│   │   └── Program.cs                    # DI setup & app startup
-│   ├── RagWorkshop.Ingestion/  # Module 1: Document processing pipeline
-│   │   ├── Interfaces/         # IPdfExtractor, ITextChunker, IEmbeddingGenerator
-│   │   └── Services/           # PDF extraction, chunking, embedding generation
-│   ├── RagWorkshop.Rag/        # Module 2: RAG logic (search + generation)
-│   │   ├── Interfaces/         # IRagService
-│   │   └── Services/           # Semantic search & answer generation
-│   └── RagWorkshop.Repository/ # Data access layer (CRUD + Search)
-│       ├── Interfaces/         # IDocumentRepository
-│       ├── Models/             # Document, DocumentChunk, SearchResult
-│       └── Services/           # Elasticsearch operations
-└── README.md
-```
 
 ## Architecture
 
@@ -300,6 +266,7 @@ Search for relevant context and generate AI-powered answers.
 
 ## Common Commands
 
+**Using Docker:**
 ```bash
 # Start services
 docker-compose up -d
@@ -314,6 +281,22 @@ docker-compose down
 docker-compose down -v
 ```
 
+**Using Podman:**
+```bash
+# Start services
+podman-compose up -d
+# OR: podman compose up -d
+
+# View logs
+podman-compose logs -f
+
+# Stop services
+podman-compose down
+
+# Stop and remove all data (fresh start)
+podman-compose down -v
+```
+
 ## Troubleshooting
 
 ### Elasticsearch won't start
@@ -324,12 +307,15 @@ docker-compose down -v
 ```bash
 # Stop everything
 docker-compose down -v
+# OR: podman-compose down -v
 
-# Check Docker is running
+# Check containers are running
 docker ps
+# OR: podman ps
 
 # Start with logs visible
 docker-compose up
+# OR: podman-compose up
 ```
 
 ### Port already in use
@@ -346,6 +332,7 @@ netstat -ano | findstr :9200
 lsof -i :9200
 
 # Kill the process or change the port in docker-compose.yml
+# Note: Same steps apply whether using Docker or Podman
 ```
 
 ### Elasticvue can't connect
@@ -360,10 +347,12 @@ lsof -i :9200
 
 **Issue**: WSL 2 installation incomplete
 
-**Solution**:
+**Solution** (Docker users):
 1. Install WSL 2: `wsl --install`
 2. Restart your computer
 3. Open Docker Desktop
+
+**Alternative**: Use [Podman Desktop](https://podman-desktop.io/) instead
 
 ## Verifying Your Setup
 
@@ -383,22 +372,3 @@ curl http://localhost:9200/test-index/_doc/1
 
 # View in Elasticvue: http://localhost:8080
 ```
-
-## Next Steps
-
-Once Elasticsearch is running successfully, you're ready for the workshop! We'll build:
-
-1. PDF upload and chunking
-2. Azure OpenAI embeddings
-3. Vector search with Elasticsearch
-4. Chat interface with RAG
-
-## Need Help?
-
-- Check logs: `docker-compose logs -f elasticsearch`
-- Verify Docker: `docker ps`
-- Clean restart: `docker-compose down -v && docker-compose up -d`
-
----
-
-**Workshop Ready?** ✅ If you can access http://localhost:9200 and http://localhost:8080, you're all set!
