@@ -5,8 +5,7 @@ using Azure.AI.OpenAI;
 namespace RagWorkshop.Api.Controllers;
 
 /// <summary>
-/// Admin controller for system health checks
-/// MODULE 0: You'll use this to verify your setup
+/// Controller for admin operations - connection checks and diagnostics
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -20,8 +19,8 @@ public class AdminController : ControllerBase
     public AdminController(
         ILogger<AdminController> logger,
         ElasticsearchClient elasticsearchClient,
-        IConfiguration configuration,
-        OpenAIClient? openAIClient = null)
+        OpenAIClient? openAIClient,
+        IConfiguration configuration)
     {
         _logger = logger;
         _elasticsearchClient = elasticsearchClient;
@@ -29,57 +28,139 @@ public class AdminController : ControllerBase
         _configuration = configuration;
     }
 
-    [HttpGet("status")]
-    public IActionResult GetStatus()
-    {
-        return Ok(new
-        {
-            status = "healthy",
-            timestamp = DateTime.UtcNow,
-            version = "1.0.0"
-        });
-    }
-
     /// <summary>
     /// Check Elasticsearch connection
     /// </summary>
     [HttpGet("elasticsearch/health")]
-    public async Task<IActionResult> GetElasticsearchHealth()
+    public async Task<IActionResult> CheckElasticsearch()
     {
         try
         {
-            var pingResponse = await _elasticsearchClient.PingAsync();
-            return Ok(new
+            var response = await _elasticsearchClient.PingAsync();
+
+            if (response.IsValidResponse)
             {
-                status = pingResponse.IsValidResponse ? "connected" : "disconnected",
-                url = _configuration["Elasticsearch:Url"]
-            });
+                var clusterInfo = await _elasticsearchClient.InfoAsync();
+                return Ok(new
+                {
+                    status = "healthy",
+                    connected = true,
+                    clusterName = clusterInfo.ClusterName,
+                    version = clusterInfo.Version?.Number
+                });
+            }
+
+            return StatusCode(503, new { status = "unhealthy", connected = false, error = "Elasticsearch not responding" });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { status = "error", message = ex.Message });
+            _logger.LogError(ex, "Failed to connect to Elasticsearch");
+            return StatusCode(503, new { status = "error", connected = false, error = ex.Message });
         }
     }
 
     /// <summary>
-    /// Check Azure OpenAI connection
+    /// Check Azure OpenAI configuration
     /// </summary>
     [HttpGet("azure-openai/health")]
-    public IActionResult GetAzureOpenAIHealth()
+    public IActionResult CheckAzureOpenAI()
     {
         if (_openAIClient == null)
         {
-            return Ok(new
+            return StatusCode(503, new
             {
                 status = "not_configured",
-                message = "Azure OpenAI client is not configured"
+                connected = false,
+                message = "Azure OpenAI not configured. Add credentials to appsettings.json"
             });
         }
+
+        var endpoint = _configuration["AzureOpenAI:Endpoint"];
+        var deploymentName = _configuration["AzureOpenAI:DeploymentName"];
+        var embeddingDeploymentName = _configuration["AzureOpenAI:EmbeddingDeploymentName"];
 
         return Ok(new
         {
             status = "configured",
-            endpoint = _configuration["AzureOpenAI:Endpoint"]
+            connected = true,
+            endpoint,
+            deploymentName,
+            embeddingDeploymentName,
+            message = "Azure OpenAI client is configured"
         });
+    }
+
+    /// <summary>
+    /// Get system status - Elasticsearch connection
+    /// </summary>
+    [HttpGet("status")]
+    public async Task<IActionResult> GetSystemStatus()
+    {
+        var status = new
+        {
+            timestamp = DateTime.UtcNow,
+            elasticsearch = new { healthy = false, message = "" },
+            azureOpenAI = new { configured = false, message = "" }
+        };
+
+        try
+        {
+            var esResponse = await _elasticsearchClient.PingAsync();
+            status = status with
+            {
+                elasticsearch = new
+                {
+                    healthy = esResponse.IsValidResponse,
+                    message = esResponse.IsValidResponse ? "Connected" : "Not responding"
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check Elasticsearch");
+            status = status with
+            {
+                elasticsearch = new { healthy = false, message = ex.Message }
+            };
+        }
+
+        status = status with
+        {
+            azureOpenAI = new
+            {
+                configured = _openAIClient != null,
+                message = _openAIClient != null ? "Configured" : "Not configured"
+            }
+        };
+
+        var overallHealthy = status.elasticsearch.healthy && status.azureOpenAI.configured;
+        return overallHealthy ? Ok(status) : StatusCode(503, status);
+    }
+
+    /// <summary>
+    /// List Elasticsearch indices
+    /// </summary>
+    [HttpGet("elasticsearch/indices")]
+    public async Task<IActionResult> GetIndices()
+    {
+        try
+        {
+            var response = await _elasticsearchClient.Indices.GetAsync(new Elastic.Clients.Elasticsearch.IndexManagement.GetIndexRequest("*"));
+
+            if (response.IsValidResponse)
+            {
+                return Ok(new
+                {
+                    indices = response.Indices.Keys.Select(k => k.ToString()).ToList()
+                });
+            }
+
+            return StatusCode(500, new { error = "Failed to retrieve indices" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get indices");
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
 }
