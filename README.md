@@ -125,6 +125,7 @@ rag-workshop/
 │   └── src/                    # Starter code with TODOs
 │       ├── RagWorkshop.Api/
 │       ├── RagWorkshop.Ingestion/
+│       ├── RagWorkshop.Models/
 │       ├── RagWorkshop.Rag/
 │       └── RagWorkshop.Repository/
 │
@@ -134,6 +135,7 @@ rag-workshop/
 │   └── src/                    # Source code
 │       ├── RagWorkshop.Api/
 │       ├── RagWorkshop.Ingestion/
+│       ├── RagWorkshop.Models/
 │       ├── RagWorkshop.Rag/
 │       └── RagWorkshop.Repository/
 │
