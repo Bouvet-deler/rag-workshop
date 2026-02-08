@@ -1,4 +1,4 @@
-namespace RagWorkshop.Ingestion.Models;
+namespace RagWorkshop.Models;
 
 /// <summary>
 /// Represents a document in the system

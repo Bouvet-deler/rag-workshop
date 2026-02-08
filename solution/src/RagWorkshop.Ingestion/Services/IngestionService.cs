@@ -1,5 +1,5 @@
 using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Repository.Models;
+using RagWorkshop.Models;
 using RagWorkshop.Repository.Interfaces;
 
 namespace RagWorkshop.Ingestion.Services;

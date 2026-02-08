@@ -1,6 +1,6 @@
 using Elastic.Clients.Elasticsearch;
 using Microsoft.Extensions.Options;
-using RagWorkshop.Repository.Models;
+using RagWorkshop.Models;
 using RagWorkshop.Repository.Interfaces;
 using RagWorkshop.Repository.Settings;
 

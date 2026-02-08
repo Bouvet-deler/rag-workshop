@@ -1,7 +1,7 @@
 using Elastic.Clients.Elasticsearch;
 using Microsoft.Extensions.Options;
 using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Ingestion.Models;
+using RagWorkshop.Models;
 using RagWorkshop.Repository.Settings;
 
 namespace RagWorkshop.Ingestion.Services;

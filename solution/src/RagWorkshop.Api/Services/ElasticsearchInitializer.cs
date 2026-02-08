@@ -42,7 +42,7 @@ public class ElasticsearchInitializer
             // Create index with mapping for vector search
             var createResponse = await _client.Indices.CreateAsync(_indexName, c => c
                 .Mappings(m => m
-                    .Properties<RagWorkshop.Ingestion.Models.DocumentChunk>(p => p
+                    .Properties<RagWorkshop.Models.DocumentChunk>(p => p
                         .Keyword(k => k.Id)
                         .Keyword(k => k.DocumentId)
                         .Text(t => t.Text)
