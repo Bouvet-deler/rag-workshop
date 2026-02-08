@@ -132,7 +132,7 @@ Replace the entire file:
 
 ```csharp
 using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Repository.Models;
+using RagWorkshop.Models;
 
 namespace RagWorkshop.Ingestion.Services;
 
@@ -213,7 +213,7 @@ Replace the entire file:
 ```csharp
 using Azure.AI.OpenAI;
 using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Repository.Models;
+using RagWorkshop.Models;
 
 namespace RagWorkshop.Ingestion.Services;
 
@@ -271,9 +271,8 @@ Replace the entire file:
 
 ```csharp
 using Elastic.Clients.Elasticsearch;
-using Elastic.Clients.Elasticsearch.IndexManagement;
-using Elastic.Clients.Elasticsearch.Mapping;
-using RagWorkshop.Repository.Models;
+using Microsoft.Extensions.Options;
+using RagWorkshop.Repository.Settings;
 
 namespace RagWorkshop.Api.Services;
 
@@ -289,13 +288,16 @@ public class ElasticsearchInitializer
     public ElasticsearchInitializer(
         ElasticsearchClient client,
         ILogger<ElasticsearchInitializer> logger,
-        IConfiguration configuration)
+        IOptions<ElasticsearchSettings> options)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _indexName = configuration["Elasticsearch:DefaultIndex"] ?? "rag-documents";
+        _indexName = options?.Value?.DefaultIndex ?? "rag-documents";
     }
 
+    /// <summary>
+    /// Initializes the Elasticsearch index with vector search mapping if it doesn't exist
+    /// </summary>
     public async Task InitializeAsync()
     {
         try
@@ -312,15 +314,15 @@ public class ElasticsearchInitializer
             // Create index with mapping for vector search
             var createResponse = await _client.Indices.CreateAsync(_indexName, c => c
                 .Mappings(m => m
-                    .Properties<DocumentChunk>(p => p
+                    .Properties<RagWorkshop.Models.DocumentChunk>(p => p
                         .Keyword(k => k.Id)
                         .Keyword(k => k.DocumentId)
                         .Text(t => t.Text)
                         .IntegerNumber(i => i.ChunkIndex)
                         .IntegerNumber(i => i.PageNumber)
                         .DenseVector(d => d.Embedding, dv => dv
-                            .Dims(1536)  // Azure OpenAI text-embedding-3-small dimension
-                            .Similarity("cosine"))  // Cosine similarity for vector search
+                            .Dims(1536)  // Azure OpenAI text-embedding-ada-002 dimension
+                            .Similarity("cosine"))
                     )
                 )
             );
@@ -363,7 +365,7 @@ Replace the entire file:
 ```csharp
 using Elastic.Clients.Elasticsearch;
 using Microsoft.Extensions.Options;
-using RagWorkshop.Repository.Models;
+using RagWorkshop.Models;
 using RagWorkshop.Repository.Interfaces;
 using RagWorkshop.Repository.Settings;
 
@@ -458,6 +460,34 @@ public class ElasticsearchDocumentRepository : IDocumentRepository
         }
     }
 
+    public async Task<List<Document>> GetAllDocumentsAsync()
+    {
+        try
+        {
+            // Get all chunks
+            var searchResponse = await _client.SearchAsync<DocumentChunk>(s => s
+                .Index(_indexName)
+                .Size(1000)
+            );
+
+            if (!searchResponse.IsValidResponse || !searchResponse.Documents.Any())
+                return new List<Document>();
+
+            // Group chunks by document ID
+            var documentGroups = searchResponse.Documents.GroupBy(c => c.DocumentId);
+
+            return documentGroups.Select(g => new Document
+            {
+                Id = g.Key,
+                Chunks = g.ToList()
+            }).ToList();
+        }
+        catch
+        {
+            return new List<Document>();
+        }
+    }
+
     public async Task<List<SearchResult>> SearchAsync(float[] queryEmbedding, int topK = 5, float minScore = 0.7f)
     {
         // We'll implement this in Module 2
@@ -484,7 +514,7 @@ Replace the entire file:
 
 ```csharp
 using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Repository.Models;
+using RagWorkshop.Models;
 using RagWorkshop.Repository.Interfaces;
 
 namespace RagWorkshop.Ingestion.Services;
