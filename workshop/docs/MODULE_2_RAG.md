@@ -22,23 +22,33 @@ By the end of this module, you will:
 2. **Augmentation**: Add that information as context to your prompt
 3. **Generation**: Use an LLM to generate an answer based on the context
 
+
 ```
 User Question
-     ↓
-[RETRIEVAL]
-  Generate query embedding
-  Search vector database
-  Retrieve top-K similar chunks
-     ↓
-[AUGMENTATION]
-  Build context from chunks
-  Create prompt with context + question
-     ↓
-[GENERATION]
-  Send to GPT-4o-mini
-  Get contextual answer
-     ↓
-Return answer + sources
+    ↓
+┌────────────────────────────┐
+│   Query Embedding Gen      │  (Azure OpenAI)
+└────────────┬───────────────┘
+           ↓
+     float[] queryEmbedding
+           ↓
+┌────────────────────────────┐
+│   Vector Search (kNN)      │  (Elasticsearch)
+└────────────┬───────────────┘
+           ↓
+   Top-K Relevant Chunks
+           ↓
+┌────────────────────────────┐
+│   Context Builder          │  (Augmentation)
+└────────────┬───────────────┘
+           ↓
+   Prompt (Context + Q)
+           ↓
+┌────────────────────────────┐
+│   Answer Generation        │  (GPT-4o-mini)
+└────────────┬───────────────┘
+           ↓
+   Answer + Sources
 ```
 
 ### Why RAG?
@@ -117,55 +127,7 @@ public async Task<List<SearchResult>> SearchAsync(float[] queryEmbedding, int to
 
 ---
 
-## Part 2: Fix RAG Interface
-
-We need to update the RAG interface to match the repository's SearchResult type.
-
-### 📝 Edit `src/RagWorkshop.Rag/Interfaces/IRagService.cs`
-
-Replace the entire file to use the correct types:
-
-```csharp
-using RagWorkshop.Repository.Interfaces;
-
-namespace RagWorkshop.Rag.Interfaces;
-
-/// <summary>
-/// Interface for RAG (Retrieval-Augmented Generation) service
-/// </summary>
-public interface IRagService
-{
-    Task<List<SearchResult>> SearchAsync(string query, int topK = 5, float minScore = 0.7f);
-    Task<RagResponse> GenerateAnswerAsync(string question, int topK = 5);
-}
-
-/// <summary>
-/// Response from RAG service containing answer and sources
-/// </summary>
-public class RagResponse
-{
-    public string Question { get; set; } = string.Empty;
-    public string Answer { get; set; } = string.Empty;
-    public List<SourceChunk> Sources { get; set; } = new();
-    public int TokensUsed { get; set; }
-}
-
-/// <summary>
-/// Source chunk used in generating the answer
-/// </summary>
-public class SourceChunk
-{
-    public string Text { get; set; } = string.Empty;
-    public float Score { get; set; }
-    public string DocumentId { get; set; } = string.Empty;
-    public int PageNumber { get; set; }
-    public int ChunkIndex { get; set; }
-}
-```
-
----
-
-## Part 3: Implement RAG Service
+## Part 2: Implement RAG Service
 
 Now let's implement the complete RAG logic.
 
@@ -322,7 +284,7 @@ Answer:";
 
 ---
 
-## Part 4: Wire Up RAG Services
+## Part 3: Wire Up RAG Services
 
 ### 📝 Edit `src/RagWorkshop.Api/Extensions/RagServiceExtensions.cs`
 
@@ -369,13 +331,13 @@ builder.Services.AddRagServices(builder.Configuration);  // Add this line
 
 ---
 
-## Part 5: RAG Controller
+## Part 4: RAG Controller
 
 Finally, let's create the API endpoints for search and chat.
 
 ### 📝 Edit `src/RagWorkshop.Api/Controllers/RagController.cs`
 
-Replace the entire file:
+Replace the RagController class:
 
 ```csharp
 using Microsoft.AspNetCore.Mvc;
@@ -479,8 +441,6 @@ public class RagController : ControllerBase
     }
 }
 
-public record ChatRequest(string Question, int? TopK = 5);
-public record SearchRequest(string Query, int? TopK = 5, float? MinScore = 0.7f);
 ```
 
 ---

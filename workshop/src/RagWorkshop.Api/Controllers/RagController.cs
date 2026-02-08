@@ -45,14 +45,5 @@ public class RagController : ControllerBase
     }
 }
 
-public class SearchRequest
-{
-    public string Query { get; set; } = string.Empty;
-    public int TopK { get; set; } = 5;
-}
-
-public class ChatRequest
-{
-    public string Question { get; set; } = string.Empty;
-    public int TopK { get; set; } = 5;
-}
+public record ChatRequest(string Question, int? TopK = 5, string? ConversationId = null);
+public record SearchRequest(string Query, int? TopK = 5, float? MinScore = 0.7f);
