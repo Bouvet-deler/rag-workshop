@@ -1,4 +1,4 @@
-# RAG Workshop - Build Your Own Retrieval-Augmented Generation System
+# RAG Workshop - Build Your Own Retrieval-Augmented Generation System (C# / .NET)
 
 Welcome to the RAG Workshop! In this hands-on workshop, you'll build a complete RAG (Retrieval-Augmented Generation) application from scratch that can:
 - 📄 **Ingest PDF documents** and extract their content
