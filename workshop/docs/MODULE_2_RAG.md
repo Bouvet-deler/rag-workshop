@@ -340,11 +340,6 @@ Finally, let's create the API endpoints for search and chat.
 Replace the RagController class:
 
 ```csharp
-using Microsoft.AspNetCore.Mvc;
-using RagWorkshop.Rag.Interfaces;
-
-namespace RagWorkshop.Api.Controllers;
-
 [ApiController]
 [Route("api/[controller]")]
 public class RagController : ControllerBase
@@ -440,7 +435,6 @@ public class RagController : ControllerBase
         }
     }
 }
-
 ```
 
 ---
