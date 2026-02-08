@@ -1,4 +1,4 @@
-using RagWorkshop.Repository.Models;
+using RagWorkshop.Models;
 
 namespace RagWorkshop.Ingestion.Interfaces;
 
