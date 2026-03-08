@@ -52,45 +52,32 @@ Let's start by implementing the PDF extractor that reads PDF files and extracts 
 
 ### 📝 Edit `src/RagWorkshop.Ingestion/Services/PdfExtractor.cs`
 
-Replace the entire file:
+Replace the the method:
 
 ```csharp
-using iText.Kernel.Pdf;
-using iText.Kernel.Pdf.Canvas.Parser;
-using iText.Kernel.Pdf.Canvas.Parser.Listener;
-using RagWorkshop.Ingestion.Interfaces;
-
-namespace RagWorkshop.Ingestion.Services;
-
-/// <summary>
-/// PDF text extraction using iText7
-/// </summary>
-public class PdfExtractor : IPdfExtractor
+public async Task<List<PageContent>> ExtractTextWithPagesAsync(Stream pdfStream)
 {
-    public async Task<List<PageContent>> ExtractTextWithPagesAsync(Stream pdfStream)
+    return await Task.Run(() =>
     {
-        return await Task.Run(() =>
+        using var pdfReader = new PdfReader(pdfStream);
+        using var pdfDocument = new PdfDocument(pdfReader);
+
+        var pages = new List<PageContent>();
+        for (int i = 1; i <= pdfDocument.GetNumberOfPages(); i++)
         {
-            using var pdfReader = new PdfReader(pdfStream);
-            using var pdfDocument = new PdfDocument(pdfReader);
+            var page = pdfDocument.GetPage(i);
+            var strategy = new SimpleTextExtractionStrategy();
+            var text = PdfTextExtractor.GetTextFromPage(page, strategy);
 
-            var pages = new List<PageContent>();
-            for (int i = 1; i <= pdfDocument.GetNumberOfPages(); i++)
+            pages.Add(new PageContent
             {
-                var page = pdfDocument.GetPage(i);
-                var strategy = new SimpleTextExtractionStrategy();
-                var text = PdfTextExtractor.GetTextFromPage(page, strategy);
+                PageNumber = i,
+                Text = text
+            });
+        }
 
-                pages.Add(new PageContent
-                {
-                    PageNumber = i,
-                    Text = text
-                });
-            }
-
-            return pages;
-        });
-    }
+        return pages;
+    });
 }
 ```
 
@@ -109,68 +96,46 @@ Now let's implement the text chunker that splits long text into manageable piece
 
 ### 📝 Edit `src/RagWorkshop.Ingestion/Services/SimpleTextChunker.cs`
 
-Replace the entire file:
+Replace the method:
 
 ```csharp
-using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Models;
-
-namespace RagWorkshop.Ingestion.Services;
-
-/// <summary>
-/// Simple text chunker with fixed size and overlap
-/// </summary>
-public class SimpleTextChunker : ITextChunker
+public List<DocumentChunk> ChunkText(string text, string documentId, int pageNumber = 0)
 {
-    private readonly int _chunkSize;
-    private readonly int _overlap;
+    var chunks = new List<DocumentChunk>();
 
-    public SimpleTextChunker(int chunkSize = 500, int overlap = 50)
-    {
-        _chunkSize = chunkSize;
-        _overlap = overlap;
-    }
-
-    public List<DocumentChunk> ChunkText(string text, string documentId, int pageNumber = 0)
-    {
-        var chunks = new List<DocumentChunk>();
-
-        if (string.IsNullOrWhiteSpace(text))
-            return chunks;
-
-        var startIndex = 0;
-        var chunkIndex = 0;
-
-        while (startIndex < text.Length)
-        {
-            var length = Math.Min(_chunkSize, text.Length - startIndex);
-            var chunkText = text.Substring(startIndex, length);
-
-            chunks.Add(new DocumentChunk
-            {
-                DocumentId = documentId,
-                Text = chunkText,
-                ChunkIndex = chunkIndex++,
-                PageNumber = pageNumber,
-                Metadata = new Dictionary<string, object>
-                {
-                    ["start_index"] = startIndex,
-                    ["end_index"] = startIndex + length
-                }
-            });
-
-            // Move to next chunk with overlap
-            startIndex += _chunkSize - _overlap;
-        }
-
+    if (string.IsNullOrWhiteSpace(text))
         return chunks;
+
+    var startIndex = 0;
+    var chunkIndex = 0;
+
+    while (startIndex < text.Length)
+    {
+        var length = Math.Min(_chunkSize, text.Length - startIndex);
+        var chunkText = text.Substring(startIndex, length);
+
+        chunks.Add(new DocumentChunk
+        {
+            DocumentId = documentId,
+            Text = chunkText,
+            ChunkIndex = chunkIndex++,
+            PageNumber = pageNumber,
+            Metadata = new Dictionary<string, object>
+            {
+                ["start_index"] = startIndex,
+                ["end_index"] = startIndex + length
+            }
+        });
+
+        // Move to next chunk with overlap
+        startIndex += _chunkSize - _overlap;
     }
+
+    return chunks;
 }
 ```
 
 ### 💡 **What's Happening?**
-- **Chunk size**: 500 characters (configurable)
-- **Overlap**: 50 characters between chunks
 - Overlap ensures context isn't lost at chunk boundaries
 - Each chunk gets metadata (start/end indices, page number)
 - Chunks are created with a sliding window approach
@@ -189,46 +154,25 @@ Let's generate vector embeddings using Azure OpenAI.
 
 ### 📝 Edit `src/RagWorkshop.Ingestion/Services/AzureOpenAIEmbeddingGenerator.cs`
 
-Replace the entire file:
+Replace the method:
 
 ```csharp
-using Azure.AI.OpenAI;
-using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Models;
-
-namespace RagWorkshop.Ingestion.Services;
-
-/// <summary>
-/// Generate embeddings using Azure OpenAI
-/// </summary>
-public class AzureOpenAIEmbeddingGenerator : IEmbeddingGenerator
+public async Task GenerateEmbeddingsAsync(List<DocumentChunk> chunks)
 {
-    private readonly OpenAIClient _client;
-    private readonly string _deploymentName;
+    if (!chunks.Any())
+        return;
 
-    public AzureOpenAIEmbeddingGenerator(OpenAIClient client, string deploymentName = "text-embedding-3-small")
+    // Extract texts from chunks
+    var texts = chunks.Select(c => c.Text).ToList();
+
+    // Generate embeddings for all texts in one API call (batch processing)
+    var embeddingsOptions = new EmbeddingsOptions(_deploymentName, texts);
+    var response = await _openAIClient.GetEmbeddingsAsync(embeddingsOptions);
+
+    // Assign embeddings back to chunks
+    for (int i = 0; i < chunks.Count; i++)
     {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
-        _deploymentName = deploymentName;
-    }
-
-    public async Task GenerateEmbeddingsAsync(List<DocumentChunk> chunks)
-    {
-        if (!chunks.Any())
-            return;
-
-        // Extract texts from chunks
-        var texts = chunks.Select(c => c.Text).ToList();
-
-        // Generate embeddings for all texts in one API call (batch processing)
-        var embeddingsOptions = new EmbeddingsOptions(_deploymentName, texts);
-        var response = await _client.GetEmbeddingsAsync(embeddingsOptions);
-
-        // Assign embeddings back to chunks
-        for (int i = 0; i < chunks.Count; i++)
-        {
-            chunks[i].Embedding = response.Value.Data[i].Embedding.ToArray();
-        }
+        chunks[i].Embedding = response.Value.Data[i].Embedding.ToArray();
     }
 }
 ```
