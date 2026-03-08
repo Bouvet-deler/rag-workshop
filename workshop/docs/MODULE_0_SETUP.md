@@ -177,7 +177,6 @@ All should return successful responses!
 - How to configure ASP.NET Core Web API with Swagger
 - How to use dependency injection for service configuration
 - How to externalize configuration using appsettings.json and user secrets
-- How to create health check endpoints
 
 ---
 

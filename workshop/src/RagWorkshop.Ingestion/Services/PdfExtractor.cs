@@ -12,16 +12,6 @@ namespace RagWorkshop.Ingestion.Services;
 public class PdfExtractor : IPdfExtractor
 {
     /// <summary>
-    /// TODO - MODULE 1: Extract all text from a PDF
-    /// Use PdfDocument and PdfTextExtractor to read text from all pages
-    /// </summary>
-    public async Task<string> ExtractTextAsync(Stream pdfStream)
-    {
-        // TODO: Implement this method in Module 1
-        throw new NotImplementedException("ExtractTextAsync - to be implemented in Module 1");
-    }
-
-    /// <summary>
     /// TODO - MODULE 1: Extract text with page numbers
     /// Similar to ExtractTextAsync but return a List<PageContent> with page information
     /// </summary>
