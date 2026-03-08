@@ -1,6 +1,8 @@
 using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.IndexManagement;
 using Elastic.Clients.Elasticsearch.Mapping;
+using Microsoft.Extensions.Options;
+using RagWorkshop.Repository.Settings;
 
 namespace RagWorkshop.Api.Services;
 
@@ -11,12 +13,17 @@ namespace RagWorkshop.Api.Services;
 public class ElasticsearchInitializer
 {
     private readonly ElasticsearchClient _client;
+    private readonly ILogger<ElasticsearchInitializer> _logger;
     private readonly string _indexName;
 
-    public ElasticsearchInitializer(ElasticsearchClient client, IConfiguration configuration)
+    public ElasticsearchInitializer(
+        ElasticsearchClient client,
+        ILogger<ElasticsearchInitializer> logger,
+        IOptions<ElasticsearchSettings> options)
     {
-        _client = client;
-        _indexName = configuration["Elasticsearch:DefaultIndex"] ?? "rag-documents";
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _indexName = options?.Value?.DefaultIndex ?? "rag-documents";
     }
 
     /// <summary>
