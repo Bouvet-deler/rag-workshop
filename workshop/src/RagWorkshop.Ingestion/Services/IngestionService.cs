@@ -40,4 +40,59 @@ public class IngestionService
         // TODO: Implement this method in Module 1
         throw new NotImplementedException("ProcessDocumentAsync - to be implemented in Module 1");
     }
+
+    private Document CreateDocument(string fileName, long fileSize)
+    {
+        return new Document
+        {
+            FileName = fileName,
+            ContentType = "application/pdf",
+            Status = "processing",
+            FileSize = fileSize
+        };
+    }
+
+    private async Task<List<PageContent>> ExtractPdfTextAsync(Stream pdfStream)
+    {
+        if (_pdfExtractor == null)
+            throw new InvalidOperationException("PDF extractor not configured");
+
+        return await _pdfExtractor.ExtractTextWithPagesAsync(pdfStream);
+    }
+
+    private List<DocumentChunk> CreateChunksFromPages(List<PageContent> pages, string documentId)
+    {
+        if (_textChunker == null)
+            throw new InvalidOperationException("Text chunker not configured");
+
+        var chunks = new List<DocumentChunk>();
+        foreach (var page in pages)
+        {
+            var pageChunks = _textChunker.ChunkText(page.Text, documentId, page.PageNumber);
+            chunks.AddRange(pageChunks);
+        }
+
+        return chunks;
+    }
+
+    private async Task GenerateEmbeddingsForChunksAsync(List<DocumentChunk> chunks)
+    {
+        if (_embeddingGenerator == null)
+            return;
+
+        await _embeddingGenerator.GenerateEmbeddingsAsync(chunks);
+    }
+
+    private async Task IndexDocumentAsync(Document document)
+    {
+        if (_documentRepository != null)
+        {
+            var indexed = await _documentRepository.SaveDocumentChunksAsync(document);
+            document.Status = indexed ? "completed" : "failed";
+        }
+        else
+        {
+            document.Status = "completed_no_indexing";
+        }
+    }
 }
