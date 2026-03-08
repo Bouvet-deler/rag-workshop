@@ -51,7 +51,7 @@ You need an Azure OpenAI resource with two deployments:
 ### Option A: User Secrets (Recommended for Development)
 
 ```bash
-cd workshop/src/RagWorkshop.Api
+cd src/RagWorkshop.Api
 
 dotnet user-secrets set "AzureOpenAI:Endpoint" "https://YOUR-RESOURCE.openai.azure.com/"
 dotnet user-secrets set "AzureOpenAI:ApiKey" "your-api-key-here"
@@ -74,56 +74,10 @@ Edit [appsettings.json](../src/RagWorkshop.Api/appsettings.json) and add your cr
 
 ---
 
-## Step 3: Build the Basic API Structure
-
-Now let's build [Program.cs](../src/RagWorkshop.Api/Program.cs) - the entry point of your API.
-
-### 📝 Edit `src/RagWorkshop.Api/Program.cs`
-
-Replace the entire file with this code:
-
-```csharp
-var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new() { Title = "RAG Workshop API", Version = "v1" });
-});
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "RAG Workshop API v1");
-        c.RoutePrefix = string.Empty; // Serve Swagger UI at root
-    });
-}
-
-app.UseAuthorization();
-app.MapControllers();
-
-// Health check endpoint
-app.MapGet("/health", () => Results.Ok(new
-{
-    status = "healthy",
-    timestamp = DateTime.UtcNow,
-    version = "1.0.0"
-}));
-
-app.Run();
-```
-
-### ✅ Test It
+### Step 3: ✅ Run and test the API 
 
 ```bash
-cd workshop/src/RagWorkshop.Api
+cd src/RagWorkshop.Api
 dotnet run
 ```
 

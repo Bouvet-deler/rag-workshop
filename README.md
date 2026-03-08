@@ -88,6 +88,27 @@ dotnet user-secrets set "AzureOpenAI:ApiKey" "your-api-key-here"
 
 ---
 
+
+## Using Azure OpenAI
+
+This workshop uses **Azure OpenAI** for generating embeddings and chat completions. You will need access to an Azure OpenAI resource with the following model deployments:
+- **gpt-4o-mini** (for chat completions)
+- **text-embedding-3-small** (for embeddings)
+
+
+### How to Set Up Azure OpenAI in Microsoft Foundry
+
+> **Note:** You will receive the required Azure OpenAI endpoint and API key as part of the workshop instructions. You do not need to set these up in advance unless you want to prepare ahead.
+
+
+1. **Get Endpoint and API Key:**
+   - You will receive the Azure OpenAI endpoint and API key during the workshop. If you want to prepare ahead, you can obtain these from your Azure OpenAI resource in Microsoft Foundry by navigating to the **Keys and Endpoint** section.
+
+2. **Configure the Application:**
+  - You will set up the endpoint and API key during the workshop. No need to configure this in advance.
+
+---
+
 ## Quick Start
 
 Now that you have the infrastructure running, choose your path:
