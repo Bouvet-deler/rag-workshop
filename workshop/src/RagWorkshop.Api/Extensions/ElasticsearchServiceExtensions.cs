@@ -11,8 +11,21 @@ namespace RagWorkshop.Api.Extensions;
 public static class ElasticsearchServiceExtensions
 {
     public static IServiceCollection AddElasticsearch(this IServiceCollection services, IConfiguration configuration)
-    {
-        // TODO - MODULE 0: Configure Elasticsearch client
-        throw new NotImplementedException("AddElasticsearch - to be implemented in Module 0");
-    }
+{
+    // Bind Elasticsearch settings from configuration
+    var elasticsearchSettings = configuration.GetSection("Elasticsearch").Get<ElasticsearchSettings>()
+        ?? new ElasticsearchSettings();
+
+    services.Configure<ElasticsearchSettings>(configuration.GetSection("Elasticsearch"));
+
+    // Create Elasticsearch client
+    var settings = new ElasticsearchClientSettings(new Uri(elasticsearchSettings.Url))
+        .DisableDirectStreaming() // Helpful for debugging
+        .RequestTimeout(TimeSpan.FromSeconds(60));
+
+    var client = new ElasticsearchClient(settings);
+    services.AddSingleton(client);
+
+    return services;
+}
 }

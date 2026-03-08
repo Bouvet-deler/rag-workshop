@@ -90,54 +90,22 @@ curl http://localhost:5001/health
 
 ---
 
-## Step 4: Configure Elasticsearch Connection
+## Step 4: Configure Elasticsearch Connection and Azure Open AI
 
-Now let's wire up Elasticsearch. Create the extension method to configure the Elasticsearch client.
+Now let's wire up Elasticsearch and Azure Open AI.
 
-### 📝 Edit `src/RagWorkshop.Api/Extensions/ElasticsearchServiceExtensions.cs`
-
-Replace the entire file:
-
-```csharp
-using Elastic.Clients.Elasticsearch;
-using Elastic.Transport;
-using RagWorkshop.Repository.Settings;
-
-namespace RagWorkshop.Api.Extensions;
-
-public static class ElasticsearchServiceExtensions
-{
-    public static IServiceCollection AddElasticsearch(this IServiceCollection services, IConfiguration configuration)
-    {
-        // Bind Elasticsearch settings from configuration
-        var elasticsearchSettings = configuration.GetSection("Elasticsearch").Get<ElasticsearchSettings>()
-            ?? new ElasticsearchSettings();
-
-        services.Configure<ElasticsearchSettings>(configuration.GetSection("Elasticsearch"));
-
-        // Create Elasticsearch client
-        var settings = new ElasticsearchClientSettings(new Uri(elasticsearchSettings.Url))
-            .DisableDirectStreaming() // Helpful for debugging
-            .RequestTimeout(TimeSpan.FromSeconds(60));
-
-        var client = new ElasticsearchClient(settings);
-        services.AddSingleton(client);
-
-        return services;
-    }
-}
-```
+### 📝 See `src/RagWorkshop.Api/Extensions`
 
 ### 📝 Update `Program.cs`
 
-Import the extension method and add the Elasticsearch configuration to [Program.cs](../src/RagWorkshop.Api/Program.cs). Add this line **after** `AddSwaggerGen()`:
+Add ElasticSearch and Azure OpenAI configuration after the Elasticsearch line:
 
 ```csharp
-// Add this line:
-using RagWorkshop.Api.Extensions;
+using RagWorkshop.Api.Extensions; // Add this line
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -145,16 +113,15 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "RAG Workshop API", Version = "v1" });
 });
 
-// Add this line:
-builder.Services.AddElasticsearch(builder.Configuration);
+builder.Services.AddElasticsearch(builder.Configuration); // Add this line
+builder.Services.AddAzureOpenAI(builder.Configuration);  // Add this line
 
-var app = builder.Build();
 // ... rest of the file
 ```
 
-### ✅ Test Elasticsearch Connection
+Restart your API and test the Elasticsearch health check
 
-Restart your API and test the Elasticsearch health check:
+### ✅ Test Elasticsearch Connection
 
 ```bash
 curl http://localhost:5001/api/admin/elasticsearch/health
@@ -162,57 +129,8 @@ curl http://localhost:5001/api/admin/elasticsearch/health
 
 You should see `"status": "connected"`.
 
----
-
-## Step 5: Configure Azure OpenAI Connection
-
-Now let's configure Azure OpenAI connectivity.
-
-### 📝 Edit `src/RagWorkshop.Api/Extensions/AzureOpenAIServiceExtensions.cs`
-
-Replace the entire file:
-
-```csharp
-using Azure;
-using Azure.AI.OpenAI;
-
-namespace RagWorkshop.Api.Extensions;
-
-public static class AzureOpenAIServiceExtensions
-{
-    public static IServiceCollection AddAzureOpenAI(this IServiceCollection services, IConfiguration configuration)
-    {
-        var endpoint = configuration["AzureOpenAI:Endpoint"];
-        var apiKey = configuration["AzureOpenAI:ApiKey"];
-
-        if (!string.IsNullOrWhiteSpace(endpoint) && !string.IsNullOrWhiteSpace(apiKey))
-        {
-            var client = new OpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
-            services.AddSingleton(client);
-        }
-        else
-        {
-            // Register a null client if not configured (for testing without Azure OpenAI)
-            services.AddSingleton<OpenAIClient>(provider => null!);
-        }
-
-        return services;
-    }
-}
-```
-
-### 📝 Update `Program.cs`
-
-Add Azure OpenAI configuration after the Elasticsearch line:
-
-```csharp
-builder.Services.AddElasticsearch(builder.Configuration);
-builder.Services.AddAzureOpenAI(builder.Configuration);  // Add this line
-```
-
 ### ✅ Test Azure OpenAI Connection
 
-Restart your API and test:
 
 ```bash
 curl http://localhost:5001/api/admin/azure-openai/health
