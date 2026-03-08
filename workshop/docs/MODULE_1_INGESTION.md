@@ -256,146 +256,37 @@ Now let's implement the repository that saves and retrieves documents from Elast
 
 ### 📝 Edit `src/RagWorkshop.Repository/Services/ElasticsearchDocumentRepository.cs`
 
-Replace the entire file:
+Replace the method:
 
 ```csharp
-using Elastic.Clients.Elasticsearch;
-using Microsoft.Extensions.Options;
-using RagWorkshop.Models;
-using RagWorkshop.Repository.Interfaces;
-using RagWorkshop.Repository.Settings;
-
-namespace RagWorkshop.Repository.Services;
-
-/// <summary>
-/// Elasticsearch implementation of document repository
-/// </summary>
-public class ElasticsearchDocumentRepository : IDocumentRepository
+public async Task<bool> SaveDocumentChunksAsync(Document document)
 {
-    private readonly ElasticsearchClient _client;
-    private readonly string _indexName;
-
-    public ElasticsearchDocumentRepository(
-        ElasticsearchClient client,
-        IOptions<ElasticsearchSettings> options)
+    try
     {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
-        _indexName = options?.Value?.DefaultIndex ?? "rag-documents";
-    }
-
-    public async Task<bool> SaveDocumentChunksAsync(Document document)
-    {
-        try
+        // Index each chunk
+        foreach (var chunk in document.Chunks)
         {
-            // Index each chunk
-            foreach (var chunk in document.Chunks)
-            {
-                var chunkResponse = await _client.IndexAsync(chunk, idx => idx
-                    .Index(_indexName)
-                    .Id(chunk.Id));
+            var chunkResponse = await _client.IndexAsync(chunk, idx => idx
+                .Index(_indexName)
+                .Id(chunk.Id));
 
-                if (!chunkResponse.IsValidResponse)
-                {
-                    return false;
-                }
+            if (!chunkResponse.IsValidResponse)
+            {
+                return false;
             }
+        }
 
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return true;
     }
-
-    public async Task<bool> DeleteDocumentAsync(string documentId)
+    catch
     {
-        try
-        {
-            // Delete all chunks for this document
-            var deleteByQueryResponse = await _client.DeleteByQueryAsync<DocumentChunk>(_indexName, d => d
-                .Query(q => q
-                    .Term(t => t.Field(f => f.DocumentId).Value(documentId))
-                )
-            );
-
-            return deleteByQueryResponse.IsValidResponse;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public async Task<Document?> GetDocumentAsync(string documentId)
-    {
-        try
-        {
-            // Get all chunks for this document
-            var searchResponse = await _client.SearchAsync<DocumentChunk>(s => s
-                .Index(_indexName)
-                .Query(q => q
-                    .Term(t => t.Field(f => f.DocumentId).Value(documentId))
-                )
-            );
-
-            if (!searchResponse.IsValidResponse || !searchResponse.Documents.Any())
-                return null;
-
-            var chunks = searchResponse.Documents.ToList();
-
-            return new Document
-            {
-                Id = documentId,
-                Chunks = chunks
-            };
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    public async Task<List<Document>> GetAllDocumentsAsync()
-    {
-        try
-        {
-            // Get all chunks
-            var searchResponse = await _client.SearchAsync<DocumentChunk>(s => s
-                .Index(_indexName)
-                .Size(1000)
-            );
-
-            if (!searchResponse.IsValidResponse || !searchResponse.Documents.Any())
-                return new List<Document>();
-
-            // Group chunks by document ID
-            var documentGroups = searchResponse.Documents.GroupBy(c => c.DocumentId);
-
-            return documentGroups.Select(g => new Document
-            {
-                Id = g.Key,
-                Chunks = g.ToList()
-            }).ToList();
-        }
-        catch
-        {
-            return new List<Document>();
-        }
-    }
-
-    public async Task<List<SearchResult>> SearchAsync(float[] queryEmbedding, int topK = 5, float minScore = 0.7f)
-    {
-        // We'll implement this in Module 2
-        throw new NotImplementedException("SearchAsync - to be implemented in Module 2");
+        return false;
     }
 }
 ```
 
 ### 💡 **What's Happening?**
 - **SaveDocumentChunksAsync**: Indexes each chunk with its embedding
-- **DeleteDocumentAsync**: Removes all chunks for a document
-- **GetDocumentAsync**: Retrieves all chunks for a document
 - SearchAsync is left for Module 2 (RAG functionality)
 
 ---
@@ -406,118 +297,89 @@ Now let's orchestrate the entire pipeline.
 
 ### 📝 Edit `src/RagWorkshop.Ingestion/Services/IngestionService.cs`
 
-Replace the entire file:
+Replace the methods:
 
 ```csharp
-using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Models;
-using RagWorkshop.Repository.Interfaces;
-
-namespace RagWorkshop.Ingestion.Services;
-
-/// <summary>
-/// Orchestrates the document ingestion pipeline
-/// </summary>
-public class IngestionService
+public async Task<Document> ProcessDocumentAsync(Stream pdfStream, string fileName)
 {
-    private readonly IPdfExtractor? _pdfExtractor;
-    private readonly ITextChunker? _textChunker;
-    private readonly IEmbeddingGenerator? _embeddingGenerator;
-    private readonly IDocumentRepository? _documentRepository;
+    var document = CreateDocument(fileName, pdfStream.Length);
 
-    public IngestionService(
-        IPdfExtractor? pdfExtractor = null,
-        ITextChunker? textChunker = null,
-        IEmbeddingGenerator? embeddingGenerator = null,
-        IDocumentRepository? documentRepository = null)
+    try
     {
-        _pdfExtractor = pdfExtractor;
-        _textChunker = textChunker;
-        _embeddingGenerator = embeddingGenerator;
-        _documentRepository = documentRepository;
+        // Step 1: Extract PDF text with page numbers
+        var pages = await ExtractPdfTextAsync(pdfStream);
+
+        // Step 2: Chunk text from all pages
+        var chunks = CreateChunksFromPages(pages, document.Id);
+
+        // Step 3: Generate embeddings for all chunks
+        await GenerateEmbeddingsForChunksAsync(chunks);
+
+        // Step 4: Save to Elasticsearch
+        document.Chunks = chunks;
+        await IndexDocumentAsync(document);
+
+        return document;
+    }
+    catch (Exception ex)
+    {
+        document.Status = "failed";
+        throw new InvalidOperationException($"Failed to process document: {ex.Message}", ex);
+    }
+}
+
+private Document CreateDocument(string fileName, long fileSize)
+{
+    return new Document
+    {
+        FileName = fileName,
+        ContentType = "application/pdf",
+        Status = "processing",
+        FileSize = fileSize
+    };
+}
+
+private async Task<List<PageContent>> ExtractPdfTextAsync(Stream pdfStream)
+{
+    if (_pdfExtractor == null)
+        throw new InvalidOperationException("PDF extractor not configured");
+
+    return await _pdfExtractor.ExtractTextWithPagesAsync(pdfStream);
+}
+
+private List<DocumentChunk> CreateChunksFromPages(List<PageContent> pages, string documentId)
+{
+    if (_textChunker == null)
+        throw new InvalidOperationException("Text chunker not configured");
+
+    var chunks = new List<DocumentChunk>();
+    foreach (var page in pages)
+    {
+        var pageChunks = _textChunker.ChunkText(page.Text, documentId, page.PageNumber);
+        chunks.AddRange(pageChunks);
     }
 
-    public async Task<Document> ProcessDocumentAsync(Stream pdfStream, string fileName)
+    return chunks;
+}
+
+private async Task GenerateEmbeddingsForChunksAsync(List<DocumentChunk> chunks)
+{
+    if (_embeddingGenerator == null)
+        return;
+
+    await _embeddingGenerator.GenerateEmbeddingsAsync(chunks);
+}
+
+private async Task IndexDocumentAsync(Document document)
+{
+    if (_documentRepository != null)
     {
-        var document = CreateDocument(fileName, pdfStream.Length);
-
-        try
-        {
-            // Step 1: Extract PDF text with page numbers
-            var pages = await ExtractPdfTextAsync(pdfStream);
-
-            // Step 2: Chunk text from all pages
-            var chunks = CreateChunksFromPages(pages, document.Id);
-
-            // Step 3: Generate embeddings for all chunks
-            await GenerateEmbeddingsForChunksAsync(chunks);
-
-            // Step 4: Save to Elasticsearch
-            document.Chunks = chunks;
-            await IndexDocumentAsync(document);
-
-            return document;
-        }
-        catch (Exception ex)
-        {
-            document.Status = "failed";
-            throw new InvalidOperationException($"Failed to process document: {ex.Message}", ex);
-        }
+        var indexed = await _documentRepository.SaveDocumentChunksAsync(document);
+        document.Status = indexed ? "completed" : "failed";
     }
-
-    private Document CreateDocument(string fileName, long fileSize)
+    else
     {
-        return new Document
-        {
-            FileName = fileName,
-            ContentType = "application/pdf",
-            Status = "processing",
-            FileSize = fileSize
-        };
-    }
-
-    private async Task<List<PageContent>> ExtractPdfTextAsync(Stream pdfStream)
-    {
-        if (_pdfExtractor == null)
-            throw new InvalidOperationException("PDF extractor not configured");
-
-        return await _pdfExtractor.ExtractTextWithPagesAsync(pdfStream);
-    }
-
-    private List<DocumentChunk> CreateChunksFromPages(List<PageContent> pages, string documentId)
-    {
-        if (_textChunker == null)
-            throw new InvalidOperationException("Text chunker not configured");
-
-        var chunks = new List<DocumentChunk>();
-        foreach (var page in pages)
-        {
-            var pageChunks = _textChunker.ChunkText(page.Text, documentId, page.PageNumber);
-            chunks.AddRange(pageChunks);
-        }
-
-        return chunks;
-    }
-
-    private async Task GenerateEmbeddingsForChunksAsync(List<DocumentChunk> chunks)
-    {
-        if (_embeddingGenerator == null)
-            return;
-
-        await _embeddingGenerator.GenerateEmbeddingsAsync(chunks);
-    }
-
-    private async Task IndexDocumentAsync(Document document)
-    {
-        if (_documentRepository != null)
-        {
-            var indexed = await _documentRepository.SaveDocumentChunksAsync(document);
-            document.Status = indexed ? "completed" : "failed";
-        }
-        else
-        {
-            document.Status = "completed_no_indexing";
-        }
+        document.Status = "completed_no_indexing";
     }
 }
 ```
@@ -530,53 +392,42 @@ Now let's configure all services in the API.
 
 ### 📝 Edit `src/RagWorkshop.Api/Extensions/IngestionServiceExtensions.cs`
 
-Replace the entire file:
+Replace the method:
 
 ```csharp
-using Azure.AI.OpenAI;
-using RagWorkshop.Ingestion.Interfaces;
-using RagWorkshop.Ingestion.Services;
-using RagWorkshop.Repository.Interfaces;
-using RagWorkshop.Repository.Services;
-
-namespace RagWorkshop.Api.Extensions;
-
-public static class IngestionServiceExtensions
+public static IServiceCollection AddIngestionServices(this IServiceCollection services, IConfiguration configuration)
 {
-    public static IServiceCollection AddIngestionServices(this IServiceCollection services, IConfiguration configuration)
+    // Repository
+    services.AddScoped<IDocumentRepository, ElasticsearchDocumentRepository>();
+
+    // Chunking
+    services.AddScoped<ITextChunker, SimpleTextChunker>();
+
+    // PDF Extraction
+    services.AddScoped<IPdfExtractor, PdfExtractor>();
+
+    // Embedding Generation (requires Azure OpenAI)
+    services.AddScoped<IEmbeddingGenerator>(sp =>
     {
-        // Repository
-        services.AddScoped<IDocumentRepository, ElasticsearchDocumentRepository>();
+        var openAIClient = sp.GetService<OpenAIClient>();
+        var config = sp.GetRequiredService<IConfiguration>();
+        var deploymentName = config["AzureOpenAI:EmbeddingDeploymentName"] ?? "text-embedding-3-small";
 
-        // Chunking
-        services.AddScoped<ITextChunker, SimpleTextChunker>();
-
-        // PDF Extraction
-        services.AddScoped<IPdfExtractor, PdfExtractor>();
-
-        // Embedding Generation (requires Azure OpenAI)
-        services.AddScoped<IEmbeddingGenerator>(sp =>
+        if (openAIClient == null)
         {
-            var openAIClient = sp.GetService<OpenAIClient>();
-            var config = sp.GetRequiredService<IConfiguration>();
-            var deploymentName = config["AzureOpenAI:EmbeddingDeploymentName"] ?? "text-embedding-3-small";
+            throw new InvalidOperationException("Azure OpenAI client not configured. Set credentials in appsettings.json");
+        }
 
-            if (openAIClient == null)
-            {
-                throw new InvalidOperationException("Azure OpenAI client not configured. Set credentials in appsettings.json");
-            }
+        return new AzureOpenAIEmbeddingGenerator(openAIClient, deploymentName);
+    });
 
-            return new AzureOpenAIEmbeddingGenerator(openAIClient, deploymentName);
-        });
+    // Ingestion Service (orchestrator)
+    services.AddScoped<IngestionService>();
 
-        // Ingestion Service (orchestrator)
-        services.AddScoped<IngestionService>();
+    // Elasticsearch Initializer
+    services.AddScoped<RagWorkshop.Api.Services.ElasticsearchInitializer>();
 
-        // Elasticsearch Initializer
-        services.AddScoped<RagWorkshop.Api.Services.ElasticsearchInitializer>();
-
-        return services;
-    }
+    return services;
 }
 ```
 
@@ -601,38 +452,6 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddElasticsearch(builder.Configuration);
 builder.Services.AddAzureOpenAI(builder.Configuration);
 builder.Services.AddIngestionServices(builder.Configuration);  // Add this line
-
-var app = builder.Build();
-
-// Initialize Elasticsearch index (Add this block)
-using (var scope = app.Services.CreateScope())
-{
-    var initializer = scope.ServiceProvider.GetRequiredService<ElasticsearchInitializer>();
-    await initializer.InitializeAsync();
-}
-
-// Configure HTTP pipeline
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "RAG Workshop API v1");
-        c.RoutePrefix = string.Empty;
-    });
-}
-
-app.UseAuthorization();
-app.MapControllers();
-
-app.MapGet("/health", () => Results.Ok(new
-{
-    status = "healthy",
-    timestamp = DateTime.UtcNow,
-    version = "1.0.0"
-}));
-
-app.Run();
 ```
 
 ---
@@ -643,82 +462,51 @@ Finally, let's implement the API endpoint for uploading PDFs.
 
 ### 📝 Edit `src/RagWorkshop.Api/Controllers/IngestionController.cs`
 
-Replace the entire file:
+Replace the controller method:
 
 ```csharp
-using Microsoft.AspNetCore.Mvc;
-using RagWorkshop.Ingestion.Services;
-using RagWorkshop.Repository.Interfaces;
-
-namespace RagWorkshop.Api.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-public class IngestionController : ControllerBase
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+public async Task<IActionResult> UploadPdf([FromBody] UploadRequest request)
 {
-    private readonly ILogger<IngestionController> _logger;
-    private readonly IngestionService _ingestionService;
-    private readonly IDocumentRepository _documentRepository;
-
-    public IngestionController(
-        ILogger<IngestionController> logger,
-        IngestionService ingestionService,
-        IDocumentRepository documentRepository)
+    try
     {
-        _logger = logger;
-        _ingestionService = ingestionService;
-        _documentRepository = documentRepository;
-    }
+        if (string.IsNullOrWhiteSpace(request.FilePath))
+        {
+            return BadRequest(new { error = "FilePath is required" });
+        }
 
-    [HttpPost("upload")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UploadPdf([FromBody] UploadRequest request)
+        if (!System.IO.File.Exists(request.FilePath))
+        {
+            return BadRequest(new { error = $"PDF file not found at path: {request.FilePath}" });
+        }
+
+        _logger.LogInformation("Processing PDF from path: {FilePath}", request.FilePath);
+
+        // Read PDF file
+        using var fileStream = new FileStream(request.FilePath, FileMode.Open, FileAccess.Read);
+        var fileName = Path.GetFileName(request.FilePath);
+
+        // Process through ingestion pipeline
+        var document = await _ingestionService.ProcessDocumentAsync(fileStream, fileName);
+
+        _logger.LogInformation("Successfully processed document {DocumentId} with {ChunkCount} chunks",
+            document.Id, document.Chunks.Count);
+
+        return Ok(new
+        {
+            documentId = document.Id,
+            fileName = document.FileName,
+            status = document.Status,
+            chunksCreated = document.Chunks.Count,
+            message = "Document processed and indexed successfully"
+        });
+    }
+    catch (Exception ex)
     {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(request.FilePath))
-            {
-                return BadRequest(new { error = "FilePath is required" });
-            }
-
-            if (!System.IO.File.Exists(request.FilePath))
-            {
-                return BadRequest(new { error = $"PDF file not found at path: {request.FilePath}" });
-            }
-
-            _logger.LogInformation("Processing PDF from path: {FilePath}", request.FilePath);
-
-            // Read PDF file
-            using var fileStream = new FileStream(request.FilePath, FileMode.Open, FileAccess.Read);
-            var fileName = Path.GetFileName(request.FilePath);
-
-            // Process through ingestion pipeline
-            var document = await _ingestionService.ProcessDocumentAsync(fileStream, fileName);
-
-            _logger.LogInformation("Successfully processed document {DocumentId} with {ChunkCount} chunks",
-                document.Id, document.Chunks.Count);
-
-            return Ok(new
-            {
-                documentId = document.Id,
-                fileName = document.FileName,
-                status = document.Status,
-                chunksCreated = document.Chunks.Count,
-                message = "Document processed and indexed successfully"
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing PDF upload");
-            return StatusCode(500, new { error = ex.Message });
-        }
+        _logger.LogError(ex, "Error processing PDF upload");
+        return StatusCode(500, new { error = ex.Message });
     }
-}
-
-public class UploadRequest
-{
-    public string FilePath { get; set; } = string.Empty;
 }
 ```
 
