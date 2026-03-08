@@ -31,6 +31,8 @@ public class IngestionController : ControllerBase
     /// Accept a file path, read the PDF, and process it through the ingestion pipeline
     /// </summary>
     [HttpPost("upload")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadPdf([FromBody] UploadRequest request)
     {
         // TODO: Implement this endpoint in Module 1

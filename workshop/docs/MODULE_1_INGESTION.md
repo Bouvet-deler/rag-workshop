@@ -327,61 +327,6 @@ public async Task<Document> ProcessDocumentAsync(Stream pdfStream, string fileNa
         throw new InvalidOperationException($"Failed to process document: {ex.Message}", ex);
     }
 }
-
-private Document CreateDocument(string fileName, long fileSize)
-{
-    return new Document
-    {
-        FileName = fileName,
-        ContentType = "application/pdf",
-        Status = "processing",
-        FileSize = fileSize
-    };
-}
-
-private async Task<List<PageContent>> ExtractPdfTextAsync(Stream pdfStream)
-{
-    if (_pdfExtractor == null)
-        throw new InvalidOperationException("PDF extractor not configured");
-
-    return await _pdfExtractor.ExtractTextWithPagesAsync(pdfStream);
-}
-
-private List<DocumentChunk> CreateChunksFromPages(List<PageContent> pages, string documentId)
-{
-    if (_textChunker == null)
-        throw new InvalidOperationException("Text chunker not configured");
-
-    var chunks = new List<DocumentChunk>();
-    foreach (var page in pages)
-    {
-        var pageChunks = _textChunker.ChunkText(page.Text, documentId, page.PageNumber);
-        chunks.AddRange(pageChunks);
-    }
-
-    return chunks;
-}
-
-private async Task GenerateEmbeddingsForChunksAsync(List<DocumentChunk> chunks)
-{
-    if (_embeddingGenerator == null)
-        return;
-
-    await _embeddingGenerator.GenerateEmbeddingsAsync(chunks);
-}
-
-private async Task IndexDocumentAsync(Document document)
-{
-    if (_documentRepository != null)
-    {
-        var indexed = await _documentRepository.SaveDocumentChunksAsync(document);
-        document.Status = indexed ? "completed" : "failed";
-    }
-    else
-    {
-        document.Status = "completed_no_indexing";
-    }
-}
 ```
 
 ---
@@ -465,8 +410,6 @@ Finally, let's implement the API endpoint for uploading PDFs.
 Replace the controller method:
 
 ```csharp
-[ProducesResponseType(StatusCodes.Status200OK)]
-[ProducesResponseType(StatusCodes.Status400BadRequest)]
 public async Task<IActionResult> UploadPdf([FromBody] UploadRequest request)
 {
     try
