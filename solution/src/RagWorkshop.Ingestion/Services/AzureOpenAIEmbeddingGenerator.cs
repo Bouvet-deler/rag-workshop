@@ -17,14 +17,6 @@ public class AzureOpenAIEmbeddingGenerator : IEmbeddingGenerator
         _deploymentName = deploymentName;
     }
 
-    public async Task<float[]> GenerateEmbeddingAsync(string text)
-    {
-        var embeddingsOptions = new EmbeddingsOptions(_deploymentName, new[] { text });
-        var response = await _client.GetEmbeddingsAsync(embeddingsOptions);
-
-        return response.Value.Data[0].Embedding.ToArray();
-    }
-
     public async Task<List<float[]>> GenerateEmbeddingsAsync(List<string> texts)
     {
         var embeddingsOptions = new EmbeddingsOptions(_deploymentName, texts);

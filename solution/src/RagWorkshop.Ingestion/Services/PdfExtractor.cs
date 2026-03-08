@@ -10,25 +10,6 @@ namespace RagWorkshop.Ingestion.Services;
 /// </summary>
 public class PdfExtractor : IPdfExtractor
 {
-    public async Task<string> ExtractTextAsync(Stream pdfStream)
-    {
-        return await Task.Run(() =>
-        {
-            using var pdfReader = new PdfReader(pdfStream);
-            using var pdfDocument = new PdfDocument(pdfReader);
-
-            var text = string.Empty;
-            for (int i = 1; i <= pdfDocument.GetNumberOfPages(); i++)
-            {
-                var page = pdfDocument.GetPage(i);
-                var strategy = new SimpleTextExtractionStrategy();
-                text += PdfTextExtractor.GetTextFromPage(page, strategy);
-            }
-
-            return text;
-        });
-    }
-
     public async Task<List<PageContent>> ExtractTextWithPagesAsync(Stream pdfStream)
     {
         return await Task.Run(() =>
