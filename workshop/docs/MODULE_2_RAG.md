@@ -133,139 +133,104 @@ Now let's implement the complete RAG logic.
 
 ### 📝 Edit `src/RagWorkshop.Rag/Services/RagService.cs`
 
-Replace the entire file:
+Replace the methods:
 
 ```csharp
-using Azure.AI.OpenAI;
-using RagWorkshop.Rag.Interfaces;
-using RagWorkshop.Repository.Interfaces;
-
-namespace RagWorkshop.Rag.Services;
-
-/// <summary>
-/// RAG service implementation for retrieval and generation
-/// </summary>
-public class RagService : IRagService
+public async Task<List<SearchResult>> SearchAsync(string query, int topK = 5, float minScore = 0.7f)
 {
-    private readonly IDocumentRepository _documentRepository;
-    private readonly OpenAIClient? _openAIClient;
-    private readonly string _embeddingDeploymentName;
-    private readonly string _chatDeploymentName;
-
-    public RagService(
-        IDocumentRepository documentRepository,
-        OpenAIClient? openAIClient = null,
-        string embeddingDeploymentName = "text-embedding-3-small",
-        string chatDeploymentName = "gpt-4o-mini")
+    if (_openAIClient == null)
     {
-        _documentRepository = documentRepository ?? throw new ArgumentNullException(nameof(documentRepository));
-        _openAIClient = openAIClient;
-        _embeddingDeploymentName = embeddingDeploymentName;
-        _chatDeploymentName = chatDeploymentName;
+        throw new InvalidOperationException("OpenAI client not configured");
     }
 
-    /// <summary>
-    /// Semantic search: converts query to embedding and searches vector database
-    /// </summary>
-    public async Task<List<SearchResult>> SearchAsync(string query, int topK = 5, float minScore = 0.7f)
+    // Generate embedding for the query
+    var embeddingResponse = await _openAIClient.GetEmbeddingsAsync(
+        new EmbeddingsOptions(_embeddingDeploymentName, new[] { query })
+    );
+
+    var queryEmbedding = embeddingResponse.Value.Data[0].Embedding.ToArray();
+
+    // Search using the repository
+    return await _documentRepository.SearchAsync(queryEmbedding, topK, minScore);
+}
+
+public async Task<RagResponse> GenerateAnswerAsync(string question, int topK = 5)
+{
+    if (_openAIClient == null)
     {
-        if (_openAIClient == null)
-        {
-            throw new InvalidOperationException("OpenAI client not configured");
-        }
-
-        // Generate embedding for the query
-        var embeddingResponse = await _openAIClient.GetEmbeddingsAsync(
-            new EmbeddingsOptions(_embeddingDeploymentName, new[] { query })
-        );
-
-        var queryEmbedding = embeddingResponse.Value.Data[0].Embedding.ToArray();
-
-        // Search using the repository
-        return await _documentRepository.SearchAsync(queryEmbedding, topK, minScore);
+        throw new InvalidOperationException("OpenAI client not configured");
     }
 
-    /// <summary>
-    /// Complete RAG: Retrieval + Augmentation + Generation
-    /// </summary>
-    public async Task<RagResponse> GenerateAnswerAsync(string question, int topK = 5)
+    // ═══════════════════════════════════════════════════════
+    // STEP 1: RETRIEVAL - Search for relevant chunks
+    // ═══════════════════════════════════════════════════════
+    var searchResults = await SearchAsync(question, topK, minScore: 0.7f);
+
+    if (!searchResults.Any())
     {
-        if (_openAIClient == null)
+        return new RagResponse
         {
-            throw new InvalidOperationException("OpenAI client not configured");
-        }
+            Question = question,
+            Answer = "I couldn't find any relevant information in the documents to answer your question.",
+            Sources = new List<SourceChunk>(),
+            TokensUsed = 0
+        };
+    }
 
-        // ═══════════════════════════════════════════════════════
-        // STEP 1: RETRIEVAL - Search for relevant chunks
-        // ═══════════════════════════════════════════════════════
-        var searchResults = await SearchAsync(question, topK, minScore: 0.7f);
+    // ═══════════════════════════════════════════════════════
+    // STEP 2: AUGMENTATION - Build context from retrieved chunks
+    // ═══════════════════════════════════════════════════════
+    var context = string.Join("\n\n", searchResults.Select((r, i) =>
+        $"[Source {i + 1}] (Page {r.Chunk.PageNumber}, Score: {r.Score:F2})\n{r.Chunk.Text}"));
 
-        if (!searchResults.Any())
-        {
-            return new RagResponse
-            {
-                Question = question,
-                Answer = "I couldn't find any relevant information in the documents to answer your question.",
-                Sources = new List<SourceChunk>(),
-                TokensUsed = 0
-            };
-        }
-
-        // ═══════════════════════════════════════════════════════
-        // STEP 2: AUGMENTATION - Build context from retrieved chunks
-        // ═══════════════════════════════════════════════════════
-        var context = string.Join("\n\n", searchResults.Select((r, i) =>
-            $"[Source {i + 1}] (Page {r.Chunk.PageNumber}, Score: {r.Score:F2})\n{r.Chunk.Text}"));
-
-        var systemPrompt = @"You are a helpful assistant that answers questions based on the provided context. 
+    var systemPrompt = @"You are a helpful assistant that answers questions based on the provided context. 
 Use only the information from the context to answer the question. 
 If the context doesn't contain enough information to answer the question, say so.
 Always cite which source(s) you used by referencing [Source N] in your answer.";
 
-        var userPrompt = $@"Context:
+    var userPrompt = $@"Context:
 {context}
 
 Question: {question}
 
 Answer:";
 
-        // ═══════════════════════════════════════════════════════
-        // STEP 3: GENERATION - Call Azure OpenAI for answer
-        // ═══════════════════════════════════════════════════════
-        var chatOptions = new ChatCompletionsOptions
+    // ═══════════════════════════════════════════════════════
+    // STEP 3: GENERATION - Call Azure OpenAI for answer
+    // ═══════════════════════════════════════════════════════
+    var chatOptions = new ChatCompletionsOptions
+    {
+        DeploymentName = _chatDeploymentName,
+        Messages =
         {
-            DeploymentName = _chatDeploymentName,
-            Messages =
-            {
-                new ChatRequestSystemMessage(systemPrompt),
-                new ChatRequestUserMessage(userPrompt)
-            },
-            Temperature = 0.7f,
-            MaxTokens = 800
-        };
+            new ChatRequestSystemMessage(systemPrompt),
+            new ChatRequestUserMessage(userPrompt)
+        },
+        Temperature = 0.7f,
+        MaxTokens = 800
+    };
 
-        var chatResponse = await _openAIClient.GetChatCompletionsAsync(chatOptions);
-        var answer = chatResponse.Value.Choices[0].Message.Content;
-        var tokensUsed = chatResponse.Value.Usage.TotalTokens;
+    var chatResponse = await _openAIClient.GetChatCompletionsAsync(chatOptions);
+    var answer = chatResponse.Value.Choices[0].Message.Content;
+    var tokensUsed = chatResponse.Value.Usage.TotalTokens;
 
-        // Build response with sources
-        var sources = searchResults.Select(r => new SourceChunk
-        {
-            Text = r.Chunk.Text,
-            Score = r.Score,
-            DocumentId = r.Chunk.DocumentId,
-            PageNumber = r.Chunk.PageNumber,
-            ChunkIndex = r.Chunk.ChunkIndex
-        }).ToList();
+    // Build response with sources
+    var sources = searchResults.Select(r => new SourceChunk
+    {
+        Text = r.Chunk.Text,
+        Score = r.Score,
+        DocumentId = r.Chunk.DocumentId,
+        PageNumber = r.Chunk.PageNumber,
+        ChunkIndex = r.Chunk.ChunkIndex
+    }).ToList();
 
-        return new RagResponse
-        {
-            Question = question,
-            Answer = answer,
-            Sources = sources,
-            TokensUsed = tokensUsed
-        };
-    }
+    return new RagResponse
+    {
+        Question = question,
+        Answer = answer,
+        Sources = sources,
+        TokensUsed = tokensUsed
+    };
 }
 ```
 
@@ -288,33 +253,23 @@ Answer:";
 
 ### 📝 Edit `src/RagWorkshop.Api/Extensions/RagServiceExtensions.cs`
 
-Replace the entire file:
+Replace the method:
 
 ```csharp
-using Azure.AI.OpenAI;
-using RagWorkshop.Rag.Interfaces;
-using RagWorkshop.Rag.Services;
-using RagWorkshop.Repository.Interfaces;
-
-namespace RagWorkshop.Api.Extensions;
-
-public static class RagServiceExtensions
+public static IServiceCollection AddRagServices(this IServiceCollection services, IConfiguration configuration)
 {
-    public static IServiceCollection AddRagServices(this IServiceCollection services, IConfiguration configuration)
+    services.AddScoped<IRagService>(sp =>
     {
-        services.AddScoped<IRagService>(sp =>
-        {
-            var openAIClient = sp.GetService<OpenAIClient>();
-            var documentRepository = sp.GetRequiredService<IDocumentRepository>();
-            var config = sp.GetRequiredService<IConfiguration>();
-            var embeddingDeploymentName = config["AzureOpenAI:EmbeddingDeploymentName"] ?? "text-embedding-3-small";
-            var chatDeploymentName = config["AzureOpenAI:DeploymentName"] ?? "gpt-4o-mini";
+        var openAIClient = sp.GetService<OpenAIClient>();
+        var documentRepository = sp.GetRequiredService<IDocumentRepository>();
+        var config = sp.GetRequiredService<IConfiguration>();
+        var embeddingDeploymentName = config["AzureOpenAI:EmbeddingDeploymentName"] ?? "text-embedding-3-small";
+        var chatDeploymentName = config["AzureOpenAI:DeploymentName"] ?? "gpt-4o-mini";
 
-            return new RagService(documentRepository, openAIClient, embeddingDeploymentName, chatDeploymentName);
-        });
+        return new RagService(documentRepository, openAIClient, embeddingDeploymentName, chatDeploymentName);
+    });
 
-        return services;
-    }
+    return services;
 }
 ```
 
@@ -337,102 +292,80 @@ Finally, let's create the API endpoints for search and chat.
 
 ### 📝 Edit `src/RagWorkshop.Api/Controllers/RagController.cs`
 
-Replace the RagController class:
+Replace the controller methods:
 
 ```csharp
-[ApiController]
-[Route("api/[controller]")]
-public class RagController : ControllerBase
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+public async Task<IActionResult> Search([FromBody] SearchRequest request)
 {
-    private readonly ILogger<RagController> _logger;
-    private readonly IRagService _ragService;
+    _logger.LogInformation("Search endpoint called with query: {Query}", request.Query);
 
-    public RagController(ILogger<RagController> logger, IRagService ragService)
+    try
     {
-        _logger = logger;
-        _ragService = ragService;
-    }
+        var results = await _ragService.SearchAsync(
+            request.Query, 
+            request.TopK ?? 5, 
+            request.MinScore ?? 0.7f);
 
-    /// <summary>
-    /// Search for relevant document chunks using semantic similarity
-    /// </summary>
-    [HttpPost("search")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Search([FromBody] SearchRequest request)
-    {
-        _logger.LogInformation("Search endpoint called with query: {Query}", request.Query);
-
-        try
+        return Ok(new
         {
-            var results = await _ragService.SearchAsync(
-                request.Query, 
-                request.TopK ?? 5, 
-                request.MinScore ?? 0.7f);
-
-            return Ok(new
+            query = request.Query,
+            resultsCount = results.Count,
+            results = results.Select(r => new
             {
-                query = request.Query,
-                resultsCount = results.Count,
-                results = results.Select(r => new
-                {
-                    text = r.Chunk.Text,
-                    score = r.Score,
-                    documentId = r.Chunk.DocumentId,
-                    chunkIndex = r.Chunk.ChunkIndex,
-                    pageNumber = r.Chunk.PageNumber
-                })
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return StatusCode(503, new { error = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error performing semantic search");
-            return StatusCode(500, new { error = "Search failed", details = ex.Message });
-        }
+                text = r.Chunk.Text,
+                score = r.Score,
+                documentId = r.Chunk.DocumentId,
+                chunkIndex = r.Chunk.ChunkIndex,
+                pageNumber = r.Chunk.PageNumber
+            })
+        });
     }
-
-    /// <summary>
-    /// Chat endpoint with RAG - retrieves context and generates answer
-    /// </summary>
-    [HttpPost("chat")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Chat([FromBody] ChatRequest request)
+    catch (InvalidOperationException ex)
     {
-        _logger.LogInformation("Chat endpoint called with question: {Question}", request.Question);
+        return StatusCode(503, new { error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error performing semantic search");
+        return StatusCode(500, new { error = "Search failed", details = ex.Message });
+    }
+}
 
-        try
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+public async Task<IActionResult> Chat([FromBody] ChatRequest request)
+{
+    _logger.LogInformation("Chat endpoint called with question: {Question}", request.Question);
+
+    try
+    {
+        var response = await _ragService.GenerateAnswerAsync(request.Question, request.TopK ?? 5);
+
+        return Ok(new
         {
-            var response = await _ragService.GenerateAnswerAsync(request.Question, request.TopK ?? 5);
-
-            return Ok(new
+            question = response.Question,
+            answer = response.Answer,
+            sources = response.Sources.Select(s => new
             {
-                question = response.Question,
-                answer = response.Answer,
-                sources = response.Sources.Select(s => new
-                {
-                    text = s.Text.Length > 200 ? s.Text[..200] + "..." : s.Text,
-                    score = s.Score,
-                    documentId = s.DocumentId,
-                    pageNumber = s.PageNumber,
-                    chunkIndex = s.ChunkIndex
-                }),
-                tokensUsed = response.TokensUsed
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return StatusCode(503, new { error = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error generating RAG response");
-            return StatusCode(500, new { error = "Chat failed", details = ex.Message });
-        }
+                text = s.Text.Length > 200 ? s.Text[..200] + "..." : s.Text,
+                score = s.Score,
+                documentId = s.DocumentId,
+                pageNumber = s.PageNumber,
+                chunkIndex = s.ChunkIndex
+            }),
+            tokensUsed = response.TokensUsed
+        });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return StatusCode(503, new { error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating RAG response");
+        return StatusCode(500, new { error = "Chat failed", details = ex.Message });
     }
 }
 ```

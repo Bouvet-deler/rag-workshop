@@ -35,35 +35,6 @@ public class ElasticsearchDocumentRepository : IDocumentRepository
     }
 
     /// <summary>
-    /// TODO - MODULE 1: Delete all chunks for a document
-    /// Use _client.DeleteByQueryAsync() to delete all chunks with matching documentId
-    /// </summary>
-    public async Task<bool> DeleteDocumentAsync(string documentId)
-    {
-        // TODO: Implement this method in Module 1
-        throw new NotImplementedException("DeleteDocumentAsync - to be implemented in Module 1");
-    }
-
-    /// <summary>
-    /// TODO - MODULE 1: Get document by ID
-    /// Search for all chunks with matching documentId and reconstruct the document
-    /// </summary>
-    public async Task<Document?> GetDocumentAsync(string documentId)
-    {
-        // TODO: Implement this method in Module 1
-        throw new NotImplementedException("GetDocumentAsync - to be implemented in Module 1");
-    }
-
-    /// <summary>
-    /// TODO - MODULE 1: Get all documents
-    /// Retrieve all documents from the index and reconstruct them with their chunks
-    /// </summary>
-    public Task<List<Document>> GetAllDocumentsAsync()
-    {
-        throw new NotImplementedException("GetAllDocumentsAsync - to be implemented in Module 1");
-    }
-
-    /// <summary>
     /// TODO - MODULE 2: Perform semantic search using kNN
     /// Use _client.SearchAsync() with KnnQuery to find similar chunks
     /// </summary>

@@ -13,21 +13,6 @@ public interface IDocumentRepository
     Task<bool> SaveDocumentChunksAsync(Document document);
 
     /// <summary>
-    /// Delete a document and its chunks
-    /// </summary>
-    Task<bool> DeleteDocumentAsync(string documentId);
-
-    /// <summary>
-    /// Get document by ID with all its chunks
-    /// </summary>
-    Task<Document?> GetDocumentAsync(string documentId);
-
-    /// <summary>
-    /// Get all documents
-    /// </summary>
-    Task<List<Document>> GetAllDocumentsAsync();
-
-    /// <summary>
     /// Search for document chunks using semantic similarity
     /// </summary>
     /// <param name="queryEmbedding">The embedding vector of the search query</param>

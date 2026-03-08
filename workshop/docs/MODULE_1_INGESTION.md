@@ -192,7 +192,7 @@ Before we can save documents, we need to create an Elasticsearch index with the 
 
 ### 📝 Edit `src/RagWorkshop.Api/Services/ElasticsearchInitializer.cs`
 
-Replace the entire file:
+Replace the method:
 
 ```csharp
 public async Task InitializeAsync()
