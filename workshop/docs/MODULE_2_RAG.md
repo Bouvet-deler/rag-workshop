@@ -297,6 +297,7 @@ Replace the controller methods:
 ```csharp
 [ProducesResponseType(StatusCodes.Status200OK)]
 [ProducesResponseType(StatusCodes.Status400BadRequest)]
+[HttpPost("search")]
 public async Task<IActionResult> Search([FromBody] SearchRequest request)
 {
     _logger.LogInformation("Search endpoint called with query: {Query}", request.Query);
@@ -335,6 +336,7 @@ public async Task<IActionResult> Search([FromBody] SearchRequest request)
 
 [ProducesResponseType(StatusCodes.Status200OK)]
 [ProducesResponseType(StatusCodes.Status400BadRequest)]
+[HttpPost("chat")]
 public async Task<IActionResult> Chat([FromBody] ChatRequest request)
 {
     _logger.LogInformation("Chat endpoint called with question: {Question}", request.Question);
@@ -383,6 +385,8 @@ dotnet run
 ```
 
 ### 2. Upload a Document (if you haven't already)
+
+Use the following CURL-commands or use the Swagger-UI:
 
 ```bash
 curl -X POST http://localhost:5001/api/ingestion/upload \

@@ -467,7 +467,7 @@ dotnet run
 
 ### 2. Test with a PDF
 
-Create a simple test PDF or use any existing PDF file. Then:
+Create a simple test PDF or use any existing PDF file. Then use the following CURL-command or use the Swagger-UI at [http://localhost:5001/](http://localhost:5001/) to test the ingestion endpoint:
 
 ```bash
 curl -X POST http://localhost:5001/api/ingestion/upload \
